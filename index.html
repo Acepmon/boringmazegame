@@ -1,0 +1,420 @@
+<html>
+<head>
+  <title>Maze Game</title>
+
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.1/css/bootstrap.min.css" integrity="sha384-WskhaSGFgHYWDcbwN70/dfYBj47jz9qbsMId/iRN3ewGhXQFZCSftd1LZCfmhktB" crossorigin="anonymous">
+
+  <style>
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0px;
+      padding: 10px;
+    }
+    #maze {
+      margin-bottom: 10px;
+      position: relative;
+      background: #ffffff;
+      border: 0px;
+      border-collapse: collapse;
+    }
+    #maze td {
+      width: 25px;
+      height: 25px;
+      text-align: center;
+      vertical-align: middle;
+      font-weight: bold;
+      font-size: 16px;
+      color: #000000;
+    }
+    #maze td.trail {
+      color: #dbdbdb;
+    }
+    #maze td.active {
+      color: #FF0000;
+    }
+  </style>
+</head>
+<body>
+  <h1 class="text-primary">Boring Maze Game</h1>
+  <p>
+    Objective of the game is to navigate the maze to its exit gate. Your current position will be highlighted as <span class="text-danger">*</span>.
+    Use <strong>up</strong>, <strong>down</strong>, <strong>left</strong>, <strong>right</strong> keys to navigate the maze. 
+    You can change the configurations of the maze down below.
+  </p>
+  <hr>
+  <div class="form-row">
+    <div class="col-12">
+      <h4>Difficulty</h4>
+    </div>
+    <div class="col-2">
+      <button type="button" class="btn btn-block btn-info" onclick="difficultyEasy()">Easy Peasy</button>
+    </div>
+    <div class="col-2">
+      <button type="button" class="btn btn-block btn-info" onclick="difficultyMedium()">Anyone can do it</button>
+    </div>
+    <div class="col-2">
+      <button type="button" class="btn btn-block btn-info" onclick="difficultyHard()">Getting Hard</button>
+    </div>
+    <div class="col-2">
+      <button type="button" class="btn btn-block btn-info" onclick="difficultyExtreme()">Go Crazy</button>
+    </div>
+  </div>
+  <hr>
+  <div class="form-row">
+    <div class="col-12">
+      <h4>Configurations</h4>
+    </div>
+    <fieldset class="form-group col">
+      <input type="number" class="form-control" id="width" name="width" value="20" title="Width" placeholder="Width">
+    </fieldset>
+    <fieldset class="form-group col">
+      <input type="number" class="form-control" id="height" name="height" value="20" title="Height" placeholder="Height">
+    </fieldset>
+    <fieldset class="form-group col">
+      <select class="form-control" name="start" id="start" title="Start Position">
+        <option value="top" selected>Top</option>
+        <option value="right">Right</option>
+        <option value="bottom">Bottom</option>
+        <option value="left">Left</option>
+      </select>
+    </fieldset>
+    <fieldset class="form-group col">
+      <select class="form-control" name="exit" id="exit" title="Exit Position">
+        <option value="top">Top</option>
+        <option value="right">Right</option>
+        <option value="bottom" selected>Bottom</option>
+        <option value="left">Left</option>
+      </select>
+    </fieldset>
+    <fieldset class="form-group col">
+      <button type="button" class="btn btn-primary btn-block" id="save" onclick="getParams();init();initStartPosition();">Save and Restart</button>
+    </fieldset>
+  </div>
+  <table id="maze" border="1" cellspacing="0"></table>
+  <strong>Todo</strong>
+  <ol>
+    <li>Fix weird movement block bug</li>
+    <li>Implement solution generator</li>
+    <li>Improve graphics</li>
+    <li>Add movement animations</li>
+  </ol>
+
+  <script type="text/javascript">
+    // Configurations
+    var width = 20;
+    var height = 20;
+    var element = document.getElementById('maze');
+    var start = 'top';
+    var randomStart = 0;
+    var startPosition = '0:0';
+    var exit = 'bottom';
+    var randomExit = 0;
+    var exitPosition = '0:0';
+    var posx = 0;
+    var posy = 0;
+    var lastPosition = '0:0';
+
+    function getParams() {
+      width = document.getElementById('width').value;
+      height = document.getElementById('height').value;
+      start = document.getElementById('start').value;
+      exit = document.getElementById('exit').value;
+    }
+
+    function generateMaze(x, y) {
+      // Establish variables and starting grid
+      var totalCells = x * y;
+      var cells = new Array();
+      var unvis = new Array();
+      for (var i = 0; i < y; i++) {
+        cells[i] = new Array();
+        unvis[i] = new Array();
+        for (var j = 0; j < x; j++) {
+          cells[i][j] = [0, 0, 0, 0];
+          unvis[i][j] = true;
+        }
+      }
+
+      // Set a random position to start from
+      var currentCell = [Math.floor(Math.random() * y), Math.floor(Math.random() * x)];
+      var path = [currentCell];
+      unvis[currentCell[0]][currentCell[1]] = false;
+      var visited = 1;
+
+      // Loop through all available cell positions
+      while (visited < totalCells) {
+        // Determine neighboring cells
+        var pot = [[currentCell[0] - 1, currentCell[1], 0, 2],
+        [currentCell[0], currentCell[1] + 1, 1, 3],
+        [currentCell[0] + 1, currentCell[1], 2, 0],
+        [currentCell[0], currentCell[1] - 1, 3, 1]];
+        var neighbors = new Array();
+
+        // Determine if each neighboring cell is in game grid, and whether it has already been checked
+        for (var l = 0; l < 4; l++) {
+          if (pot[l][0] > -1 && pot[l][0] < y && pot[l][1] > -1 && pot[l][1] < x && unvis[pot[l][0]][pot[l][1]]) { neighbors.push(pot[l]); }
+        }
+
+        // If at least one active neighboring cell has been found
+        if (neighbors.length) {
+          // Choose one of the neighbors at random
+          next = neighbors[Math.floor(Math.random() * neighbors.length)];
+
+          // Remove the wall between the current cell and the chosen neighboring cell
+          cells[currentCell[0]][currentCell[1]][next[2]] = 1;
+          cells[next[0]][next[1]][next[3]] = 1;
+
+          // Mark the neighbor as visited, and set it as the current cell
+          unvis[next[0]][next[1]] = false;
+          visited++;
+          currentCell = [next[0], next[1]];
+          path.push(currentCell);
+        }
+        // Otherwise go back up a step and keep going
+        else {
+          currentCell = path.pop();
+        }
+      }
+      return cells;
+    }
+
+    function initStartPosition() {
+      var cell = document.getElementById(posx + ':' + posy);
+      var last = document.getElementById(lastPosition);
+      cell.innerHTML = '*';
+      last.classList.remove('active');
+      cell.classList.add('trail');
+      cell.classList.add('active');
+    }
+
+    function init() {
+      element.innerHTML = '';
+      var maze = generateMaze(width, height);
+      
+      // Randomize start
+      randomStart = 1
+      if (start === 'top' || start === 'bottom') {
+        randomStart = Math.floor((Math.random() * width));
+      } else if (start === 'left' || start === 'right') {
+        randomStart = Math.floor((Math.random() * height));
+      }
+      if (start === 'top') {
+        maze[0][randomStart][0] = 1;
+        posx = 0;
+        posy = randomStart;
+      } else if (start === 'right') {
+        maze[randomStart][width-1][1] = 1;
+        posx = randomStart;
+        posy = width - 1;
+      } else if (start === 'bottom') {
+        maze[height-1][randomStart][2] = 1;
+        posx = height - 1;
+        posy = randomStart;
+      } else if (start === 'left') {
+        maze[randomStart][0][3] = 1;
+        posx = randomStart;
+        posy = 0;
+      }
+      startPosition = posx + ':' + posy;
+
+      randomExit = 1;
+      if (exit === 'top' || exit === 'bottom') {
+        randomExit = Math.floor((Math.random() * width));
+      } else if (exit === 'left' || exit === 'right') {
+        randomExit = Math.floor((Math.random() * height));
+      }
+      while (randomStart === randomExit) {
+        if (exit === 'top' || exit === 'bottom') {
+          randomExit = Math.floor((Math.random() * width));
+        } else if (exit === 'left' || exit === 'right') {
+          randomExit = Math.floor((Math.random() * height));
+        }
+      }
+      if (exit === 'top') {
+        maze[0][randomExit][0] = 1;
+        exitPosition = 0 + ':' + randomExit;
+      } else if (exit === 'right') {
+        maze[randomExit][width-1][1] = 1;
+        exitPosition = randomExit + ':' + (width-1);
+      } else if (exit === 'bottom') {
+        maze[height-1][randomExit][2] = 1;
+        exitPosition = (height-1) + ':' + randomExit;
+      } else if (exit === 'left') {
+        maze[randomExit][0][3] = 1;
+        exitPosition = randomExit + ':' + 0;
+      }
+
+      // Draw cells
+      var x = 0, y = 0;
+      for (var i = 0; i < maze.length; i++) {
+        var tr = document.createElement('tr');
+        for (var j = 0; j < maze[i].length; j++) {
+          var cell = maze[i][j];
+          var td = document.createElement('td');
+          var borderTop = (cell[0] == 0 ? 1 : 0) + 'px';
+          var borderRight =  (cell[1] == 0 ? 1 : 0) + 'px';
+          var borderBottom = (cell[2] == 0 ? 1 : 0) + 'px';
+          var borderLeft = (cell[3] == 0 ? 1 : 0) + 'px';
+          td.style.borderWidth = borderTop + ' ' + borderRight + ' ' + borderBottom + ' ' + borderLeft;
+          td.style.borderStyle = "solid";
+          td.style.borderColor = "#535559";
+          td.vAlign = "center";
+          td.id = i + ':' + j;
+          td.dataset.walls = cell.join(':');
+          tr.appendChild(td);
+        }
+        element.appendChild(tr);
+      }
+    }
+
+    function gameWon() {
+      if (confirm('Congratulations!!!\nYou have won a boring maze game! Restart?')) {
+        getParams(); init(); initStartPosition();
+      }
+    }
+
+    function goLeft() {
+      var cell = document.getElementById(posx + ':' + posy);
+      var walls = cell.dataset.walls.split(":");
+      var startPos = document.getElementById(startPosition);
+      var walls = cell.dataset.walls.split(":");
+
+      if (startPos.dataset.walls === cell.dataset.walls) {
+        if (startPos.dataset.walls.split(":")[3] === '1' && start === 'left') {
+          return;
+        }
+      }
+
+      if (cell.id === exitPosition) {
+        gameWon();
+        return;
+      }
+
+      if (walls[3] === '1') {
+        lastPosition = posx + ':' + posy;
+        posy = posy - 1;
+        initStartPosition();
+      }
+    }
+
+    function goUp() {
+      var cell = document.getElementById(posx + ':' + posy);
+      var startPos = document.getElementById(startPosition);
+      var walls = cell.dataset.walls.split(":");
+      if (startPos.dataset.walls === cell.dataset.walls) {
+        if (startPos.dataset.walls.split(":")[0] === '1' && start === 'top') {
+          return;
+        }
+      }
+
+      if (cell.id === exitPosition) {
+        gameWon();
+        return;
+      }
+
+      if (walls[0] === '1') {
+        lastPosition = posx + ':' + posy;
+        posx = posx - 1;
+        initStartPosition();
+      }
+    }
+    
+    function goRight() {
+      var cell = document.getElementById(posx + ':' + posy);
+      var startPos = document.getElementById(startPosition);
+      var walls = cell.dataset.walls.split(":");
+      if (startPos.dataset.walls === cell.dataset.walls) {
+        if (startPos.dataset.walls.split(":")[1] === '1' && start === 'right') {
+          return;
+        }
+      }
+
+      if (cell.id === exitPosition) {
+        gameWon();
+        return;
+      }
+
+      if (walls[1] === '1') {
+        lastPosition = posx + ':' + posy;
+        posy = posy + 1;
+        initStartPosition();
+      }
+    }
+
+    function goDown() {
+      var cell = document.getElementById(posx + ':' + posy);
+      var startPos = document.getElementById(startPosition);
+      var walls = cell.dataset.walls.split(":");
+      if (startPos.dataset.walls === cell.dataset.walls) {
+        if (startPos.dataset.walls.split(":")[2] === '1' && start === 'bottom') {
+          return;
+        }
+      }
+
+      if (cell.id === exitPosition) {
+        gameWon();
+        return;
+      }
+
+      if (walls[2] === '1') {
+        lastPosition = posx + ':' + posy;
+        posx = posx + 1;
+        initStartPosition();
+      }
+    }
+
+    function difficultyEasy() {
+      document.getElementById('width').value = 10;
+      document.getElementById('height').value = 10;
+      getParams();
+      init();
+      initStartPosition();
+    }
+
+    function difficultyMedium() {
+      document.getElementById('width').value = 30;
+      document.getElementById('height').value = 30;
+      getParams();
+      init();
+      initStartPosition();
+    }
+
+    function difficultyHard() {
+      document.getElementById('width').value = 50;
+      document.getElementById('height').value = 50;
+      getParams();
+      init();
+      initStartPosition();
+    }
+
+    function difficultyExtreme() {
+      document.getElementById('width').value = 100;
+      document.getElementById('height').value = 100;
+      getParams();
+      init();
+      initStartPosition();
+    }
+
+    // Initialize when DOM is ready
+    (function() {
+      difficultyMedium();
+
+      document.onkeydown = function(e) {
+        switch (e.keyCode) {
+          case 37: goLeft(); break;
+          case 65: goLeft(); break;
+          case 38: goUp(); break;
+          case 87: goUp(); break;
+          case 39: goRight(); break;
+          case 68: goRight(); break;
+          case 40: goDown(); break;
+          case 83: goDown(); break;
+          case 82: getParams(); init(); initStartPosition(); break;
+        }
+      };
+    })();
+  </script>
+</body>
+</html>
